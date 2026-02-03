@@ -1,6 +1,6 @@
 # Gestão de Carteira de Seguros (Apólices)
 
-Projeto back-end em **Java 17 + Spring Boot 3** para cadastro e controle de clientes, seguradoras e apólices, com foco em regras de negócio (vigência, vencimento, renovação) e API REST pronta para portfólio.
+Projeto back-end em **Java 17 + Spring Boot 3** para cadastro e controle de clientes, seguradoras e apólices, com foco em regras de negócio (vigência, vencimento, renovação) e API REST.
 
 ## Contexto do problema
 Empresas que gerenciam carteira de seguros precisam acompanhar clientes, seguradoras e apólices, além de identificar rapidamente apólices vencidas ou próximas da renovação. Este sistema entrega uma API REST completa para esse controle.
