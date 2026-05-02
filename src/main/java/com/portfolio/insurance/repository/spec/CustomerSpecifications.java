@@ -13,7 +13,8 @@ public class CustomerSpecifications {
             String pattern = "%" + search.toLowerCase() + "%";
             return builder.or(
                     builder.like(builder.lower(root.get("fullName")), pattern),
-                    builder.like(builder.lower(root.get("cpf")), pattern)
+                    builder.like(builder.lower(root.get("cpf")), pattern),
+                    builder.like(builder.lower(root.get("cnpj")), pattern)
             );
         };
     }

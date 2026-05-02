@@ -1,3 +1,4 @@
 com\portfolio\insurance\controller\InsurerControllerTest.class
+com\portfolio\insurance\service\CustomerServiceTest.class
 com\portfolio\insurance\validation\DocumentValidatorTest.class
 com\portfolio\insurance\service\PolicyServiceTest.class

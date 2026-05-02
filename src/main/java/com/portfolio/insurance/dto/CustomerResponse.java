@@ -1,5 +1,6 @@
 package com.portfolio.insurance.dto;
 
+import com.portfolio.insurance.domain.CustomerType;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDate;
@@ -10,7 +11,9 @@ import java.util.UUID;
 public record CustomerResponse(
         UUID id,
         String fullName,
+        CustomerType customerType,
         String cpf,
+        String cnpj,
         String email,
         String phone,
         LocalDate birthDate,

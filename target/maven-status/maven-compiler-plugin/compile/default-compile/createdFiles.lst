@@ -27,6 +27,7 @@ com\portfolio\insurance\domain\Customer.class
 com\portfolio\insurance\repository\spec\PolicySpecifications.class
 com\portfolio\insurance\mapper\InsurerMapper.class
 com\portfolio\insurance\service\PolicyService.class
+com\portfolio\insurance\domain\CustomerType.class
 com\portfolio\insurance\mapper\PolicyMapper.class
 com\portfolio\insurance\controller\CustomerController.class
 com\portfolio\insurance\domain\Policy.class
