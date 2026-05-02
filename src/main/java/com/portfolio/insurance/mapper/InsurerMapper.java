@@ -8,14 +8,14 @@ public class InsurerMapper {
 
     public static Insurer toEntity(InsurerRequest request) {
         Insurer insurer = new Insurer();
-        insurer.setName(request.name());
-        insurer.setCnpj(request.cnpj());
+        insurer.setName(trim(request.name()));
+        insurer.setCnpj(trimToNull(request.cnpj()));
         return insurer;
     }
 
     public static void updateEntity(Insurer insurer, InsurerRequest request) {
-        insurer.setName(request.name());
-        insurer.setCnpj(request.cnpj());
+        insurer.setName(trim(request.name()));
+        insurer.setCnpj(trimToNull(request.cnpj()));
     }
 
     public static InsurerResponse toResponse(Insurer insurer) {
@@ -25,5 +25,14 @@ public class InsurerMapper {
                 insurer.getCnpj(),
                 insurer.isActive()
         );
+    }
+
+    private static String trim(String value) {
+        return value == null ? null : value.trim();
+    }
+
+    private static String trimToNull(String value) {
+        String trimmed = trim(value);
+        return trimmed == null || trimmed.isBlank() ? null : trimmed;
     }
 }

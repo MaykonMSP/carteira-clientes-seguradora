@@ -6,7 +6,6 @@ import com.portfolio.insurance.service.InsurerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,10 +26,13 @@ import java.util.UUID;
 @Tag(name = "Insurers", description = "Operações de seguradoras")
 @RestController
 @RequestMapping("/insurers")
-@RequiredArgsConstructor
 public class InsurerController {
 
     private final InsurerService insurerService;
+
+    public InsurerController(InsurerService insurerService) {
+        this.insurerService = insurerService;
+    }
 
     @Operation(summary = "Criar seguradora")
     @PostMapping

@@ -6,7 +6,6 @@ import com.portfolio.insurance.service.CustomerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,10 +26,13 @@ import java.util.UUID;
 @Tag(name = "Customers", description = "Operações de clientes")
 @RestController
 @RequestMapping("/customers")
-@RequiredArgsConstructor
 public class CustomerController {
 
     private final CustomerService customerService;
+
+    public CustomerController(CustomerService customerService) {
+        this.customerService = customerService;
+    }
 
     @Operation(summary = "Criar cliente")
     @PostMapping

@@ -8,19 +8,19 @@ public class CustomerMapper {
 
     public static Customer toEntity(CustomerRequest request) {
         Customer customer = new Customer();
-        customer.setFullName(request.fullName());
-        customer.setCpf(request.cpf());
-        customer.setEmail(request.email());
-        customer.setPhone(request.phone());
+        customer.setFullName(trim(request.fullName()));
+        customer.setCpf(trim(request.cpf()));
+        customer.setEmail(trimToNull(request.email()));
+        customer.setPhone(trimToNull(request.phone()));
         customer.setBirthDate(request.birthDate());
         return customer;
     }
 
     public static void updateEntity(Customer customer, CustomerRequest request) {
-        customer.setFullName(request.fullName());
-        customer.setCpf(request.cpf());
-        customer.setEmail(request.email());
-        customer.setPhone(request.phone());
+        customer.setFullName(trim(request.fullName()));
+        customer.setCpf(trim(request.cpf()));
+        customer.setEmail(trimToNull(request.email()));
+        customer.setPhone(trimToNull(request.phone()));
         customer.setBirthDate(request.birthDate());
     }
 
@@ -35,5 +35,14 @@ public class CustomerMapper {
                 customer.getCreatedAt(),
                 customer.getUpdatedAt()
         );
+    }
+
+    private static String trim(String value) {
+        return value == null ? null : value.trim();
+    }
+
+    private static String trimToNull(String value) {
+        String trimmed = trim(value);
+        return trimmed == null || trimmed.isBlank() ? null : trimmed;
     }
 }

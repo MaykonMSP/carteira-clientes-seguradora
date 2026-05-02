@@ -1,20 +1,18 @@
-# Gestão de Carteira de Seguros (Apólices)
+# Gestao de Carteira de Seguros
 
-Projeto back-end em **Java 17 + Spring Boot 3** para cadastro e controle de clientes, seguradoras e apólices, com foco em regras de negócio (vigência, vencimento, renovação) e API REST.
-
-## Contexto do problema
-Empresas que gerenciam carteira de seguros precisam acompanhar clientes, seguradoras e apólices, além de identificar rapidamente apólices vencidas ou próximas da renovação. Este sistema entrega uma API REST completa para esse controle.
+Projeto back-end em **Java 17 + Spring Boot 3** para cadastro e controle de clientes, seguradoras e apolices, com foco em regras de negocio de vigencia, vencimento, renovacao e API REST.
 
 ## Funcionalidades
-- CRUD de **seguradoras**, **clientes** e **apólices**
-- Filtros avançados de apólices (status, tipo, seguradora, cliente, período, número)
-- Recalcular status automaticamente (vigente/vencida) e em lote
-- Listar apólices a vencer nos próximos N dias
-- Validações de CPF/CNPJ e datas
-- Paginação com `Pageable`
-- Swagger UI (OpenAPI)
-- Autenticação Basic Auth
-- Migrations com Flyway
+- CRUD de seguradoras, clientes e apolices
+- Filtros de apolices por status, tipo, seguradora, cliente, numero, periodo de inicio e periodo de vencimento
+- Recalculo automatico de status vigente/vencida, preservando apolices canceladas
+- Listagem de apolices a vencer nos proximos N dias
+- Validacao real de CPF/CNPJ, datas, duplicidades e vinculos
+- Paginacao com `Pageable`
+- Tratamento global de erros com respostas JSON padronizadas
+- Swagger UI com esquema Basic Auth
+- Autenticacao Basic Auth com credenciais configuraveis por ambiente
+- Migrations com Flyway, constraints e indices para filtros principais
 
 ## Stack
 - Java 17
@@ -23,51 +21,62 @@ Empresas que gerenciam carteira de seguros precisam acompanhar clientes, segurad
 - PostgreSQL
 - Flyway
 - Springdoc OpenAPI
-- Spring Security (Basic Auth)
+- Spring Security
 - JUnit 5 + Spring Boot Test
 
 ## Estrutura de pastas
-```
+```text
 src/main/java/com/portfolio/insurance
-├── config
-├── controller
-├── domain
-├── dto
-├── exception
-├── mapper
-├── repository
-│   └── spec
-└── service
+|-- config
+|-- controller
+|-- domain
+|-- dto
+|-- exception
+|-- mapper
+|-- repository
+|   `-- spec
+|-- service
+`-- validation
 ```
 
-## Como rodar localmente (Maven)
-```bash
-# subir banco
-docker compose up -d
-
-# rodar aplicação
-./mvnw spring-boot:run
-```
-
-## Como rodar com Docker (somente Postgres)
+## Como rodar localmente
 ```bash
 docker compose up -d
+mvn spring-boot:run
 ```
 
-## Variáveis de ambiente
+Se aparecer `FATAL: banco de dados "insurance_db" nao existe`, confirme que o projeto esta usando o Postgres do Docker:
+
+```bash
+docker compose ps
+docker compose exec postgres psql -U postgres -d postgres -c "\l"
 ```
-DB_HOST=localhost
+
+Por padrao, o Postgres do Docker fica exposto em `127.0.0.1:5433` para evitar conflito com outro PostgreSQL local na porta `5432`.
+
+## Variaveis de ambiente
+```text
+DB_HOST=127.0.0.1
+DB_PORT=5433
 DB_NAME=insurance_db
 DB_USER=postgres
 DB_PASS=postgres
+
+APP_ADMIN_USER=admin
+APP_ADMIN_PASSWORD=admin123
+APP_READONLY_USER=user
+APP_READONLY_PASSWORD=user123
+SPRING_PROFILES_ACTIVE=dev
 ```
 
-## Documentação Swagger
+## Swagger
 - `http://localhost:8080/swagger-ui.html`
 
-## Credenciais (Basic Auth)
-- **admin/admin123** (ROLE_ADMIN)
-- **user/user123** (ROLE_USER)
+## Credenciais padrao
+- `admin/admin123` com `ROLE_ADMIN`
+- `user/user123` com `ROLE_USER`
+
+> Para uso real, sobrescreva as senhas via variaveis de ambiente.
 
 ## Endpoints principais
 - `POST /insurers`
@@ -88,22 +97,30 @@ DB_PASS=postgres
 - `GET /policies/expiring?days=30`
 - `POST /policies/recalculate-status`
 
-## Exemplos de requests (curl)
+## Filtros de apolices
+```text
+GET /policies?status=VIGENTE&type=AUTO&insurerId={uuid}&customerId={uuid}
+GET /policies?startDateFrom=2024-01-01&startDateTo=2024-12-31
+GET /policies?endDateFrom=2024-01-01&endDateTo=2024-12-31
+GET /policies?search=POL-2024
+```
+
+## Exemplos
 ### Criar cliente
 ```bash
 curl -X POST http://localhost:8080/customers \
   -u admin:admin123 \
   -H "Content-Type: application/json" \
   -d '{
-    "fullName": "João da Silva",
-    "cpf": "12345678901",
+    "fullName": "Joao da Silva",
+    "cpf": "52998224725",
     "email": "joao@email.com",
     "phone": "+55 11 99999-0000",
     "birthDate": "1990-05-20"
   }'
 ```
 
-### Criar apólice
+### Criar apolice
 ```bash
 curl -X POST http://localhost:8080/policies \
   -u admin:admin123 \
@@ -111,18 +128,13 @@ curl -X POST http://localhost:8080/policies \
   -d '{
     "policyNumber": "POL-2024-0100",
     "type": "AUTO",
-    "status": "VIGENTE",
     "startDate": "2024-01-01",
     "endDate": "2024-12-31",
     "monthlyPremium": 120.50,
-    "notes": "Apólice anual",
+    "notes": "Apolice anual",
     "customerId": "33333333-3333-3333-3333-333333333333",
     "insurerId": "11111111-1111-1111-1111-111111111111"
   }'
 ```
 
-## Próximos passos
-- Tela web para acompanhamento da carteira
-- Exportação CSV/Excel
-- Notificações de renovação por e-mail
-- Integração com mensageria
+O campo `status` pode ser omitido. O sistema calcula `VIGENTE` ou `VENCIDA` com base na data final. Quando `CANCELADA` for informado, o status e preservado.

@@ -1,42 +1,37 @@
 package com.portfolio.insurance.controller;
 
-import com.portfolio.insurance.dto.InsurerResponse;
-import com.portfolio.insurance.service.InsurerService;
+import com.portfolio.insurance.domain.Insurer;
+import com.portfolio.insurance.repository.InsurerRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.UUID;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(InsurerController.class)
-@Import(com.portfolio.insurance.config.SecurityConfig.class)
+@SpringBootTest
+@AutoConfigureMockMvc
+@Transactional
 class InsurerControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
-    private InsurerService insurerService;
+    @Autowired
+    private InsurerRepository insurerRepository;
 
     @Test
     @WithMockUser(roles = "USER")
     void shouldListInsurers() throws Exception {
-        InsurerResponse response = new InsurerResponse(UUID.randomUUID(), "Seguradora XP", "12345678000190", true);
-        Page<InsurerResponse> page = new PageImpl<>(List.of(response));
-        when(insurerService.list(any(), any())).thenReturn(page);
+        Insurer insurer = new Insurer();
+        insurer.setName("Seguradora XP");
+        insurer.setCnpj("11222333000181");
+        insurerRepository.save(insurer);
 
         mockMvc.perform(get("/insurers"))
                 .andExpect(status().isOk())

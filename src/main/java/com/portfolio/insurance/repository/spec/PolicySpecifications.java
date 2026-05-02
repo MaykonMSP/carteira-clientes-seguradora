@@ -14,6 +14,10 @@ public class PolicySpecifications {
         return (root, query, builder) -> status == null ? builder.conjunction() : builder.equal(root.get("status"), status);
     }
 
+    public static Specification<Policy> isNotCancelled() {
+        return (root, query, builder) -> builder.notEqual(root.get("status"), PolicyStatus.CANCELADA);
+    }
+
     public static Specification<Policy> hasType(PolicyType type) {
         return (root, query, builder) -> type == null ? builder.conjunction() : builder.equal(root.get("type"), type);
     }
@@ -24,6 +28,14 @@ public class PolicySpecifications {
 
     public static Specification<Policy> hasCustomer(UUID customerId) {
         return (root, query, builder) -> customerId == null ? builder.conjunction() : builder.equal(root.get("customer").get("id"), customerId);
+    }
+
+    public static Specification<Policy> startDateFrom(LocalDate from) {
+        return (root, query, builder) -> from == null ? builder.conjunction() : builder.greaterThanOrEqualTo(root.get("startDate"), from);
+    }
+
+    public static Specification<Policy> startDateTo(LocalDate to) {
+        return (root, query, builder) -> to == null ? builder.conjunction() : builder.lessThanOrEqualTo(root.get("startDate"), to);
     }
 
     public static Specification<Policy> endDateFrom(LocalDate from) {
