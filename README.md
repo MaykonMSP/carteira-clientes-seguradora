@@ -348,10 +348,11 @@ Secao preparada para imagens do projeto:
 
 | Tela | Print |
 | --- | --- |
-| Login | Adicionar print da tela de login |
-| Dashboard | Adicionar print com cards e apolices a vencer |
-| Clientes | Adicionar print da listagem e formulario |
-| Apolices | Adicionar print dos filtros e detalhe lateral |
+| Login | <img width="1828" height="919" alt="image" src="https://github.com/user-attachments/assets/5f2d5ac4-eb5d-46f3-9306-a23af03a51ba" /> |
+| Dashboard | <img width="1861" height="865" alt="image" src="https://github.com/user-attachments/assets/374112d3-c39f-4edf-b828-7908eadfb9b0" /> |
+| Clientes | <img width="1623" height="911" alt="image" src="https://github.com/user-attachments/assets/1754d8da-87a4-4a3b-b416-9fa27a955cfe" /> |
+| Apolices | <img width="1626" height="919" alt="image" src="https://github.com/user-attachments/assets/05c91301-ecea-4e52-8205-613db97525ae" /> |
+ 
 
 Sugestao de pasta para assets:
 
