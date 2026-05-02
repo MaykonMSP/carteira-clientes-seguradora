@@ -77,7 +77,7 @@ public class PolicyService {
                 .and(PolicySpecifications.startDateTo(startDateTo))
                 .and(PolicySpecifications.endDateFrom(endDateFrom))
                 .and(PolicySpecifications.endDateTo(endDateTo))
-                .and(PolicySpecifications.policyNumberContains(search));
+                .and(PolicySpecifications.searchContains(search));
         Page<Policy> page = policyRepository.findAll(spec, pageable);
         updateStatusesIfNeeded(page.getContent());
         return page.map(PolicyMapper::toResponse);

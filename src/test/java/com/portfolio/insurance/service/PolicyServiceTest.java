@@ -15,6 +15,8 @@ import com.portfolio.insurance.repository.PolicyRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -103,6 +105,74 @@ class PolicyServiceTest {
     }
 
     @Test
+    void shouldCreateExpiredPolicyWithCalculatedStatusWhenEndDateIsPast() {
+        Customer customer = saveCustomer("Cliente Vencido", "32696423857");
+        Insurer insurer = saveInsurer("Seguradora Vencimento", null, true);
+
+        PolicyRequest request = new PolicyRequest(
+                "POL-CALCULATED-EXPIRED",
+                PolicyType.AUTO,
+                null,
+                LocalDate.now().minusDays(40),
+                LocalDate.now().minusDays(1),
+                null,
+                null,
+                customer.getId(),
+                insurer.getId()
+        );
+
+        PolicyResponse response = policyService.create(request);
+
+        assertThat(response.status()).isEqualTo(PolicyStatus.VENCIDA);
+    }
+
+    @Test
+    void shouldSetPolicyAsActiveWhenExpiredPolicyIsRenewedWithFutureEndDate() {
+        Customer customer = saveCustomer("Cliente Renovado", "40140404840");
+        Insurer insurer = saveInsurer("Seguradora Renovada", null, true);
+        Policy policy = savePolicy("POL-RENEWED", customer, insurer, PolicyStatus.VENCIDA, LocalDate.now().minusDays(1));
+
+        PolicyRequest request = new PolicyRequest(
+                policy.getPolicyNumber(),
+                PolicyType.AUTO,
+                PolicyStatus.VENCIDA,
+                LocalDate.now(),
+                LocalDate.now().plusDays(365),
+                null,
+                "Renovacao anual",
+                customer.getId(),
+                insurer.getId()
+        );
+
+        PolicyResponse response = policyService.update(policy.getId(), request);
+
+        assertThat(response.status()).isEqualTo(PolicyStatus.VIGENTE);
+        assertThat(response.endDate()).isEqualTo(LocalDate.now().plusDays(365));
+    }
+
+    @Test
+    void shouldRejectPolicyWhenEndDateIsBeforeStartDate() {
+        Customer customer = saveCustomer("Cliente Data Invalida", "57116847477");
+        Insurer insurer = saveInsurer("Seguradora Data Invalida", null, true);
+
+        PolicyRequest request = new PolicyRequest(
+                "POL-INVALID-DATES",
+                PolicyType.AUTO,
+                null,
+                LocalDate.now(),
+                LocalDate.now().minusDays(1),
+                null,
+                null,
+                customer.getId(),
+                insurer.getId()
+        );
+
+        assertThatThrownBy(() -> policyService.create(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Data fim");
+    }
+
+    @Test
     void shouldRejectInactiveInsurerForPolicy() {
         Customer customer = saveCustomer("Cliente Inativo", "11144477735");
         Insurer insurer = saveInsurer("Seguradora Inativa", "04252011000110", false);
@@ -167,6 +237,42 @@ class PolicyServiceTest {
                 .extracting(PolicyResponse::policyNumber)
                 .contains("POL-EXPIRING-ACTIVE")
                 .doesNotContain("POL-EXPIRING-CANCELLED");
+    }
+
+    @Test
+    void shouldListOnlyPoliciesInsideExpiringWindowIncludingToday() {
+        Customer customer = saveCustomer("Cliente Janela", "98700539008");
+        Insurer insurer = saveInsurer("Seguradora Janela", null, true);
+        savePolicy("POL-EXPIRING-TODAY", customer, insurer, PolicyStatus.VIGENTE, LocalDate.now());
+        savePolicy("POL-EXPIRING-OUTSIDE", customer, insurer, PolicyStatus.VIGENTE, LocalDate.now().plusDays(31));
+
+        List<PolicyResponse> policies = policyService.expiringPolicies(30);
+
+        assertThat(policies)
+                .extracting(PolicyResponse::policyNumber)
+                .contains("POL-EXPIRING-TODAY")
+                .doesNotContain("POL-EXPIRING-OUTSIDE");
+    }
+
+    @Test
+    void shouldSearchPoliciesByCustomerNameAndNotes() {
+        Customer customer = saveCustomer("Cliente Horizonte", "06230790402");
+        Customer otherCustomer = saveCustomer("Cliente Avulso", "85387712033");
+        Insurer insurer = saveInsurer("Seguradora Busca", null, true);
+        Policy matchedByCustomer = savePolicy("POL-CUSTOMER-SEARCH", customer, insurer, PolicyStatus.VIGENTE, LocalDate.now().plusDays(20));
+        Policy matchedByNotes = savePolicy("POL-NOTES-SEARCH", otherCustomer, insurer, PolicyStatus.VIGENTE, LocalDate.now().plusDays(25));
+        matchedByNotes.setNotes("Renovacao prioritaria");
+        policyRepository.save(matchedByNotes);
+
+        Page<PolicyResponse> byCustomer = policyService.list(null, null, null, null, null, null, null, null, "Horizonte", PageRequest.of(0, 10));
+        Page<PolicyResponse> byNotes = policyService.list(null, null, null, null, null, null, null, null, "prioritaria", PageRequest.of(0, 10));
+
+        assertThat(byCustomer.getContent())
+                .extracting(PolicyResponse::policyNumber)
+                .containsExactly(matchedByCustomer.getPolicyNumber());
+        assertThat(byNotes.getContent())
+                .extracting(PolicyResponse::policyNumber)
+                .containsExactly(matchedByNotes.getPolicyNumber());
     }
 
     private Customer saveCustomer(String name, String cpf) {
