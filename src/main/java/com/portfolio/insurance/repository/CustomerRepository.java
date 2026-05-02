@@ -10,4 +10,8 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID>, JpaSp
     boolean existsByCpf(String cpf);
 
     boolean existsByCpfAndIdNot(String cpf, UUID id);
+
+    boolean existsByCnpj(String cnpj);
+
+    boolean existsByCnpjAndIdNot(String cnpj, UUID id);
 }

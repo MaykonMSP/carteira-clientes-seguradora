@@ -12,7 +12,7 @@ Projeto back-end em **Java 17 + Spring Boot 3** para cadastro e controle de clie
 - Tratamento global de erros com respostas JSON padronizadas
 - Swagger UI com esquema Basic Auth
 - Autenticacao Basic Auth com credenciais configuraveis por ambiente
-- Migrations com Flyway, constraints e indices para filtros principais
+- Migrations com Flyway, constraints, indices e dados ficticios de demonstracao
 
 ## Stack
 - Java 17
@@ -53,6 +53,8 @@ docker compose exec postgres psql -U postgres -d postgres -c "\l"
 ```
 
 Por padrao, o Postgres do Docker fica exposto em `127.0.0.1:5433` para evitar conflito com outro PostgreSQL local na porta `5432`.
+
+As migrations criam dados ficticios para demonstracao, incluindo seguradoras, clientes pessoa fisica e juridica, apolices vigentes, vencidas e proximas do vencimento, com seguros auto, residencial, empresarial, vida e saude.
 
 ## Variaveis de ambiente
 ```text
@@ -113,10 +115,25 @@ curl -X POST http://localhost:8080/customers \
   -H "Content-Type: application/json" \
   -d '{
     "fullName": "Joao da Silva",
+    "customerType": "PESSOA_FISICA",
     "cpf": "52998224725",
     "email": "joao@email.com",
     "phone": "+55 11 99999-0000",
     "birthDate": "1990-05-20"
+  }'
+```
+
+### Criar cliente pessoa juridica
+```bash
+curl -X POST http://localhost:8080/customers \
+  -u admin:admin123 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fullName": "Empresa Ficticia Ltda",
+    "customerType": "PESSOA_JURIDICA",
+    "cnpj": "12345678000195",
+    "email": "contato@empresa.example.test",
+    "phone": "+55 11 91000-0000"
   }'
 ```
 

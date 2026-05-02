@@ -2,6 +2,8 @@ package com.portfolio.insurance.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -24,8 +26,15 @@ public class Customer {
     @Column(nullable = false)
     private String fullName;
 
-    @Column(nullable = false, unique = true, length = 11)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private CustomerType customerType = CustomerType.PESSOA_FISICA;
+
+    @Column(unique = true, length = 11)
     private String cpf;
+
+    @Column(length = 14)
+    private String cnpj;
 
     @Column
     private String email;
@@ -58,12 +67,28 @@ public class Customer {
         this.fullName = fullName;
     }
 
+    public CustomerType getCustomerType() {
+        return customerType;
+    }
+
+    public void setCustomerType(CustomerType customerType) {
+        this.customerType = customerType;
+    }
+
     public String getCpf() {
         return cpf;
     }
 
     public void setCpf(String cpf) {
         this.cpf = cpf;
+    }
+
+    public String getCnpj() {
+        return cnpj;
+    }
+
+    public void setCnpj(String cnpj) {
+        this.cnpj = cnpj;
     }
 
     public String getEmail() {
@@ -108,6 +133,9 @@ public class Customer {
 
     @PrePersist
     public void prePersist() {
+        if (this.customerType == null) {
+            this.customerType = CustomerType.PESSOA_FISICA;
+        }
         LocalDateTime now = LocalDateTime.now();
         this.createdAt = now;
         this.updatedAt = now;
