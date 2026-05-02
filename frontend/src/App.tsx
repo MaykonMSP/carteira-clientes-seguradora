@@ -34,6 +34,14 @@ import type {
 } from "./types";
 
 type View = "dashboard" | "customers" | "insurers" | "policies";
+type MessageTone = "success" | "error" | "info";
+type AppMessage = { text: string; tone: MessageTone };
+type LoadOptions = {
+  customerSearch?: string;
+  insurerSearch?: string;
+  policyFilters?: PolicyFilters;
+  preserveMessage?: boolean;
+};
 
 const policyTypes: PolicyType[] = ["AUTO", "RESIDENCIAL", "EMPRESARIAL", "VIDA", "SAUDE", "VIAGEM", "OUTROS"];
 const policyStatuses: PolicyStatus[] = ["VIGENTE", "VENCIDA", "CANCELADA"];
@@ -65,6 +73,16 @@ const emptyPolicy: PolicyPayload = {
   insurerId: ""
 };
 
+const emptyPolicyFilters: PolicyFilters = {
+  search: "",
+  status: "",
+  type: "",
+  customerId: "",
+  insurerId: "",
+  endDateFrom: "",
+  endDateTo: ""
+};
+
 function saveSession(credentials: Credentials) {
   localStorage.setItem("insurance.credentials", JSON.stringify(credentials));
 }
@@ -89,6 +107,19 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
 }
 
+function toDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, days: number) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
 function daysUntil(date: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -102,7 +133,7 @@ function isExpiring(policy: Policy) {
 }
 
 function statusLabel(policy: Policy) {
-  if (isExpiring(policy)) return "Proxima";
+  if (isExpiring(policy)) return "A vencer";
   if (policy.status === "VIGENTE") return "Vigente";
   if (policy.status === "VENCIDA") return "Vencida";
   return "Cancelada";
@@ -117,16 +148,38 @@ function compactDocument(value: string | null) {
   return value || "-";
 }
 
+function expirationLabel(policy: Policy) {
+  if (policy.status === "CANCELADA") return "Cancelada";
+  const days = daysUntil(policy.endDate);
+  if (days < 0) return `Vencida ha ${Math.abs(days)} dia${Math.abs(days) === 1 ? "" : "s"}`;
+  if (days === 0) return "Vence hoje";
+  return `Vence em ${days} dia${days === 1 ? "" : "s"}`;
+}
+
 function cleanPayload<T extends object>(payload: T): T {
   return Object.fromEntries(
     Object.entries(payload).map(([key, value]) => [key, value === "" ? null : value])
   ) as T;
 }
 
+function hasPolicyFilters(filters: PolicyFilters) {
+  return Object.values(filters).some(Boolean);
+}
+
+function expiringInThirtyDaysFilters(base: PolicyFilters = emptyPolicyFilters): PolicyFilters {
+  const today = new Date();
+  return {
+    ...base,
+    status: "VIGENTE",
+    endDateFrom: toDateInput(today),
+    endDateTo: toDateInput(addDays(today, 30))
+  };
+}
+
 export default function App() {
   const [credentials, setCredentials] = useState<Credentials | null>(() => loadSession());
   const [view, setView] = useState<View>("dashboard");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<AppMessage | null>(null);
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [insurers, setInsurers] = useState<Insurer[]>([]);
@@ -142,15 +195,7 @@ export default function App() {
 
   const [customerSearch, setCustomerSearch] = useState("");
   const [insurerSearch, setInsurerSearch] = useState("");
-  const [policyFilters, setPolicyFilters] = useState<PolicyFilters>({
-    search: "",
-    status: "",
-    type: "",
-    customerId: "",
-    insurerId: "",
-    endDateFrom: "",
-    endDateTo: ""
-  });
+  const [policyFilters, setPolicyFilters] = useState<PolicyFilters>(emptyPolicyFilters);
 
   const [customerForm, setCustomerForm] = useState<CustomerPayload>(emptyCustomer);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -167,15 +212,28 @@ export default function App() {
 
   const canWrite = credentials?.username === "admin";
 
-  async function loadData(nextCredentials = credentials) {
-    if (!nextCredentials) return;
+  function showSuccess(text: string) {
+    setMessage({ text, tone: "success" });
+  }
+
+  function showError(error: unknown, fallback: string) {
+    setMessage({ text: error instanceof Error ? error.message : fallback, tone: "error" });
+  }
+
+  async function loadData(nextCredentials = credentials, options: LoadOptions = {}) {
+    if (!nextCredentials) return false;
     setLoading(true);
-    setMessage("");
+    if (!options.preserveMessage) {
+      setMessage(null);
+    }
+    const activeCustomerSearch = options.customerSearch ?? customerSearch;
+    const activeInsurerSearch = options.insurerSearch ?? insurerSearch;
+    const activePolicyFilters = options.policyFilters ?? policyFilters;
     try {
       const [customerPage, insurerPage, policyPage, activePage, expiredPage, expiring] = await Promise.all([
-        api.customers.list(nextCredentials, customerSearch),
-        api.insurers.list(nextCredentials, insurerSearch),
-        api.policies.list(nextCredentials, policyFilters),
+        api.customers.list(nextCredentials, activeCustomerSearch),
+        api.insurers.list(nextCredentials, activeInsurerSearch),
+        api.policies.list(nextCredentials, activePolicyFilters),
         api.policies.byStatus(nextCredentials, "VIGENTE"),
         api.policies.byStatus(nextCredentials, "VENCIDA"),
         api.policies.expiring(nextCredentials, 30)
@@ -191,8 +249,10 @@ export default function App() {
         active: activePage.totalElements,
         expired: expiredPage.totalElements
       });
+      return true;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Falha ao carregar dados.");
+      showError(error, "Falha ao carregar dados.");
+      return false;
     } finally {
       setLoading(false);
     }
@@ -213,14 +273,14 @@ export default function App() {
       password: String(form.get("password") || "")
     };
     setLoading(true);
-    setMessage("");
+    setMessage(null);
     try {
       await api.login(nextCredentials);
       saveSession(nextCredentials);
       setCredentials(nextCredentials);
       setView("dashboard");
     } catch {
-      setMessage("Usuario ou senha invalidos.");
+      setMessage({ text: "Usuario ou senha invalidos.", tone: "error" });
     } finally {
       setLoading(false);
     }
@@ -229,7 +289,7 @@ export default function App() {
   function logout() {
     localStorage.removeItem("insurance.credentials");
     setCredentials(null);
-    setMessage("");
+    setMessage(null);
   }
 
   function editCustomer(customer: Customer) {
@@ -258,28 +318,28 @@ export default function App() {
     try {
       if (editingCustomer) {
         await api.customers.update(credentials, editingCustomer.id, payload);
-        setMessage("Cliente atualizado.");
+        showSuccess("Cliente atualizado.");
       } else {
         await api.customers.create(credentials, payload);
-        setMessage("Cliente cadastrado.");
+        showSuccess("Cliente cadastrado.");
       }
       setShowCustomerForm(false);
       setEditingCustomer(null);
       setCustomerForm(emptyCustomer);
-      await loadData();
+      await loadData(credentials, { preserveMessage: true });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Falha ao salvar cliente.");
+      showError(error, "Falha ao salvar cliente.");
     }
   }
 
   async function removeCustomer(customer: Customer) {
-    if (!credentials || !window.confirm(`Excluir ${customer.fullName}?`)) return;
+    if (!credentials || !window.confirm(`Excluir ${customer.fullName}? Esta acao nao pode ser desfeita.`)) return;
     try {
       await api.customers.remove(credentials, customer.id);
-      setMessage("Cliente excluido.");
-      await loadData();
+      showSuccess("Cliente excluido.");
+      await loadData(credentials, { preserveMessage: true });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Falha ao excluir cliente.");
+      showError(error, "Falha ao excluir cliente.");
     }
   }
 
@@ -295,28 +355,28 @@ export default function App() {
     try {
       if (editingInsurer) {
         await api.insurers.update(credentials, editingInsurer.id, cleanPayload(insurerForm));
-        setMessage("Seguradora atualizada.");
+        showSuccess("Seguradora atualizada.");
       } else {
         await api.insurers.create(credentials, cleanPayload(insurerForm));
-        setMessage("Seguradora cadastrada.");
+        showSuccess("Seguradora cadastrada.");
       }
       setShowInsurerForm(false);
       setEditingInsurer(null);
       setInsurerForm(emptyInsurer);
-      await loadData();
+      await loadData(credentials, { preserveMessage: true });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Falha ao salvar seguradora.");
+      showError(error, "Falha ao salvar seguradora.");
     }
   }
 
   async function removeInsurer(insurer: Insurer) {
-    if (!credentials || !window.confirm(`Desativar ${insurer.name}?`)) return;
+    if (!credentials || !window.confirm(`Desativar ${insurer.name}? As apolices existentes continuam preservadas.`)) return;
     try {
       await api.insurers.remove(credentials, insurer.id);
-      setMessage("Seguradora desativada.");
-      await loadData();
+      showSuccess("Seguradora desativada.");
+      await loadData(credentials, { preserveMessage: true });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Falha ao excluir seguradora.");
+      showError(error, "Falha ao excluir seguradora.");
     }
   }
 
@@ -348,30 +408,36 @@ export default function App() {
     try {
       if (editingPolicy) {
         await api.policies.update(credentials, editingPolicy.id, payload);
-        setMessage("Apolice atualizada.");
+        showSuccess("Apolice atualizada.");
       } else {
         await api.policies.create(credentials, payload);
-        setMessage("Apolice cadastrada.");
+        showSuccess("Apolice cadastrada.");
       }
       setShowPolicyForm(false);
       setEditingPolicy(null);
       setPolicyForm(emptyPolicy);
-      await loadData();
+      await loadData(credentials, { preserveMessage: true });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Falha ao salvar apolice.");
+      showError(error, "Falha ao salvar apolice.");
     }
   }
 
   async function removePolicy(policy: Policy) {
-    if (!credentials || !window.confirm(`Excluir apolice ${policy.policyNumber}?`)) return;
+    if (!credentials || !window.confirm(`Excluir apolice ${policy.policyNumber}? Esta acao remove o registro da carteira.`)) return;
     try {
       await api.policies.remove(credentials, policy.id);
-      setMessage("Apolice excluida.");
+      showSuccess("Apolice excluida.");
       setSelectedPolicy(null);
-      await loadData();
+      await loadData(credentials, { preserveMessage: true });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Falha ao excluir apolice.");
+      showError(error, "Falha ao excluir apolice.");
     }
+  }
+
+  async function applyPolicyFilters(nextFilters: PolicyFilters) {
+    setPolicyFilters(nextFilters);
+    setView("policies");
+    return loadData(credentials, { policyFilters: nextFilters });
   }
 
   const dashboardCards = useMemo(
@@ -404,7 +470,7 @@ export default function App() {
               Senha
               <input name="password" defaultValue="admin123" type="password" autoComplete="current-password" required />
             </label>
-            {message && <div className="form-message">{message}</div>}
+            {message && <div className={`form-message ${message.tone}`}>{message.text}</div>}
             <button className="primary-button" disabled={loading}>
               <ShieldCheck size={18} />
               Entrar
@@ -437,7 +503,7 @@ export default function App() {
             <span>{canWrite ? "Perfil administrador" : "Perfil leitura"}</span>
           </div>
           <div className="topbar-actions">
-            <button className="icon-button" title="Atualizar" onClick={() => void loadData()}>
+            <button className="icon-button" title="Atualizar" disabled={loading} onClick={() => void loadData()}>
               <RefreshCcw size={18} />
             </button>
             <button className="ghost-button" onClick={logout}>
@@ -448,15 +514,24 @@ export default function App() {
         </header>
 
         <main className="content">
-          {message && <div className="notice">{message}</div>}
+          {message && <div className={`notice ${message.tone}`}>{message.text}</div>}
           {loading && <div className="loading-line" />}
           {view === "dashboard" && (
-            <Dashboard cards={dashboardCards} policies={policies} expiringPolicies={expiringPolicies} onOpenPolicy={setSelectedPolicy} />
+            <Dashboard
+              cards={dashboardCards}
+              policies={policies}
+              expiringPolicies={expiringPolicies}
+              onOpenPolicy={setSelectedPolicy}
+              onShowAll={() => void applyPolicyFilters({ ...emptyPolicyFilters })}
+              onShowExpired={() => void applyPolicyFilters({ ...emptyPolicyFilters, status: "VENCIDA" })}
+              onShowExpiring={() => void applyPolicyFilters(expiringInThirtyDaysFilters({ ...emptyPolicyFilters }))}
+            />
           )}
           {view === "customers" && (
             <CustomersView
               canWrite={canWrite}
               customers={customers}
+              loading={loading}
               search={customerSearch}
               setSearch={setCustomerSearch}
               reload={() => loadData()}
@@ -475,6 +550,7 @@ export default function App() {
             <InsurersView
               canWrite={canWrite}
               insurers={insurers}
+              loading={loading}
               search={insurerSearch}
               setSearch={setInsurerSearch}
               reload={() => loadData()}
@@ -495,9 +571,10 @@ export default function App() {
               policies={policies}
               customers={customers}
               insurers={insurers}
+              loading={loading}
               filters={policyFilters}
               setFilters={setPolicyFilters}
-              reload={() => loadData()}
+              applyFilters={applyPolicyFilters}
               form={policyForm}
               setForm={setPolicyForm}
               showForm={showPolicyForm}
@@ -558,12 +635,18 @@ function Dashboard({
   cards,
   policies,
   expiringPolicies,
-  onOpenPolicy
+  onOpenPolicy,
+  onShowAll,
+  onShowExpired,
+  onShowExpiring
 }: {
   cards: { label: string; value: number; icon: typeof Users }[];
   policies: Policy[];
   expiringPolicies: Policy[];
   onOpenPolicy: (policy: Policy) => void;
+  onShowAll: () => void;
+  onShowExpired: () => void;
+  onShowExpiring: () => void;
 }) {
   const recent = policies.slice(0, 6);
   return (
@@ -578,6 +661,21 @@ function Dashboard({
             <Icon size={22} />
           </article>
         ))}
+      </div>
+
+      <div className="quick-actions">
+        <button className="secondary-button" onClick={onShowExpiring}>
+          <CalendarClock size={17} />
+          Vencem em 30 dias
+        </button>
+        <button className="secondary-button" onClick={onShowExpired}>
+          <XCircle size={17} />
+          Vencidas
+        </button>
+        <button className="secondary-button" onClick={onShowAll}>
+          <ClipboardList size={17} />
+          Toda a carteira
+        </button>
       </div>
 
       <section className="panel">
@@ -607,7 +705,7 @@ function PolicyMiniList({ policies, empty, onOpen }: { policies: Policy[]; empty
         <button key={policy.id} className="mini-row" onClick={() => onOpen(policy)}>
           <span>
             <strong>{policy.policyNumber}</strong>
-            <small>{policy.customerName}</small>
+            <small>{policy.customerName} - {expirationLabel(policy)}</small>
           </span>
           <span className={statusClass(policy)}>{statusLabel(policy)}</span>
         </button>
@@ -625,22 +723,62 @@ function SectionHeader({ title, action }: { title: string; action?: React.ReactN
   );
 }
 
-function SearchBox({ value, onChange, onSearch }: { value: string; onChange: (value: string) => void; onSearch: () => void }) {
+function SearchBox({
+  value,
+  onChange,
+  onSearch,
+  placeholder,
+  loading
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSearch: () => void;
+  placeholder: string;
+  loading: boolean;
+}) {
   return (
-    <div className="search-box">
+    <form
+      className="search-box"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSearch();
+      }}
+    >
       <Search size={18} />
-      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder="Buscar" />
-      <button onClick={onSearch}>Filtrar</button>
-    </div>
+      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+      <button disabled={loading}>Filtrar</button>
+    </form>
+  );
+}
+
+function EmptyTableRow({
+  colSpan,
+  title,
+  description
+}: {
+  colSpan: number;
+  title: string;
+  description: string;
+}) {
+  return (
+    <tr className="empty-row">
+      <td colSpan={colSpan}>
+        <div className="empty-state">
+          <strong>{title}</strong>
+          <span>{description}</span>
+        </div>
+      </td>
+    </tr>
   );
 }
 
 function CustomersView(props: {
   canWrite: boolean;
   customers: Customer[];
+  loading: boolean;
   search: string;
   setSearch: (value: string) => void;
-  reload: () => Promise<void>;
+  reload: () => Promise<boolean>;
   form: CustomerPayload;
   setForm: (form: CustomerPayload) => void;
   showForm: boolean;
@@ -671,7 +809,13 @@ function CustomersView(props: {
           )
         }
       />
-      <SearchBox value={props.search} onChange={props.setSearch} onSearch={props.reload} />
+      <SearchBox
+        value={props.search}
+        onChange={props.setSearch}
+        onSearch={props.reload}
+        placeholder="Buscar por nome ou documento"
+        loading={props.loading}
+      />
       {props.showForm && (
         <CustomerForm
           form={props.form}
@@ -697,6 +841,16 @@ function CustomersView(props: {
             </tr>
           </thead>
           <tbody>
+            {props.loading && !props.customers.length && (
+              <EmptyTableRow colSpan={6} title="Carregando clientes" description="Buscando a carteira mais recente." />
+            )}
+            {!props.loading && !props.customers.length && (
+              <EmptyTableRow
+                colSpan={6}
+                title={props.search ? "Nenhum cliente encontrado" : "Nenhum cliente cadastrado"}
+                description={props.search ? "Revise o termo de busca ou limpe o filtro." : "Cadastre o primeiro cliente para comecar a operar a carteira."}
+              />
+            )}
             {props.customers.map((customer) => (
               <tr key={customer.id}>
                 <td>{customer.fullName}</td>
@@ -778,9 +932,10 @@ function CustomerForm({
 function InsurersView(props: {
   canWrite: boolean;
   insurers: Insurer[];
+  loading: boolean;
   search: string;
   setSearch: (value: string) => void;
-  reload: () => Promise<void>;
+  reload: () => Promise<boolean>;
   form: InsurerPayload;
   setForm: (form: InsurerPayload) => void;
   showForm: boolean;
@@ -811,7 +966,13 @@ function InsurersView(props: {
           )
         }
       />
-      <SearchBox value={props.search} onChange={props.setSearch} onSearch={props.reload} />
+      <SearchBox
+        value={props.search}
+        onChange={props.setSearch}
+        onSearch={props.reload}
+        placeholder="Buscar por nome da seguradora"
+        loading={props.loading}
+      />
       {props.showForm && (
         <form className="form-panel" onSubmit={props.onSubmit}>
           <h2>{props.editing ? "Editar seguradora" : "Nova seguradora"}</h2>
@@ -844,6 +1005,16 @@ function InsurersView(props: {
             </tr>
           </thead>
           <tbody>
+            {props.loading && !props.insurers.length && (
+              <EmptyTableRow colSpan={4} title="Carregando seguradoras" description="Atualizando a lista de parceiras." />
+            )}
+            {!props.loading && !props.insurers.length && (
+              <EmptyTableRow
+                colSpan={4}
+                title={props.search ? "Nenhuma seguradora encontrada" : "Nenhuma seguradora cadastrada"}
+                description={props.search ? "Revise o termo de busca ou limpe o filtro." : "Cadastre seguradoras para vincular novas apolices."}
+              />
+            )}
             {props.insurers.map((insurer) => (
               <tr key={insurer.id}>
                 <td>{insurer.name}</td>
@@ -868,9 +1039,10 @@ function PoliciesView(props: {
   policies: Policy[];
   customers: Customer[];
   insurers: Insurer[];
+  loading: boolean;
   filters: PolicyFilters;
   setFilters: (filters: PolicyFilters) => void;
-  reload: () => Promise<void>;
+  applyFilters: (filters: PolicyFilters) => Promise<boolean>;
   form: PolicyPayload;
   setForm: (form: PolicyPayload) => void;
   showForm: boolean;
@@ -902,7 +1074,14 @@ function PoliciesView(props: {
           )
         }
       />
-      <PolicyFilterBar filters={props.filters} setFilters={props.setFilters} customers={props.customers} insurers={props.insurers} reload={props.reload} />
+      <PolicyFilterBar
+        filters={props.filters}
+        setFilters={props.setFilters}
+        customers={props.customers}
+        insurers={props.insurers}
+        loading={props.loading}
+        applyFilters={props.applyFilters}
+      />
       {props.showForm && (
         <PolicyForm
           form={props.form}
@@ -931,13 +1110,30 @@ function PoliciesView(props: {
             </tr>
           </thead>
           <tbody>
+            {props.loading && !props.policies.length && (
+              <EmptyTableRow colSpan={7} title="Carregando apolices" description="Consultando filtros e status atualizados." />
+            )}
+            {!props.loading && !props.policies.length && (
+              <EmptyTableRow
+                colSpan={7}
+                title={hasPolicyFilters(props.filters) ? "Nenhuma apolice encontrada" : "Nenhuma apolice cadastrada"}
+                description={
+                  hasPolicyFilters(props.filters)
+                    ? "Ajuste os filtros ou limpe a consulta para ampliar a busca."
+                    : "Cadastre a primeira apolice para acompanhar vigencia e renovacao."
+                }
+              />
+            )}
             {props.policies.map((policy) => (
               <tr key={policy.id}>
                 <td>{policy.policyNumber}</td>
                 <td>{policy.customerName}</td>
                 <td>{policy.insurerName}</td>
                 <td>{policy.type}</td>
-                <td>{formatDate(policy.endDate)}</td>
+                <td className="date-cell">
+                  <span>{formatDate(policy.endDate)}</span>
+                  <small>{expirationLabel(policy)}</small>
+                </td>
                 <td>
                   <span className={statusClass(policy)}>{statusLabel(policy)}</span>
                 </td>
@@ -963,19 +1159,21 @@ function PolicyFilterBar({
   setFilters,
   customers,
   insurers,
-  reload
+  loading,
+  applyFilters
 }: {
   filters: PolicyFilters;
   setFilters: (filters: PolicyFilters) => void;
   customers: Customer[];
   insurers: Insurer[];
-  reload: () => Promise<void>;
+  loading: boolean;
+  applyFilters: (filters: PolicyFilters) => Promise<boolean>;
 }) {
   return (
     <div className="filter-bar">
       <label>
         Buscar
-        <input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Numero ou observacao" />
+        <input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Numero, cliente, seguradora ou observacao" />
       </label>
       <label>
         Status
@@ -1029,10 +1227,23 @@ function PolicyFilterBar({
         Ate
         <input type="date" value={filters.endDateTo} onChange={(event) => setFilters({ ...filters, endDateTo: event.target.value })} />
       </label>
-      <button className="primary-button" onClick={reload}>
+      <button className="primary-button" disabled={loading} onClick={() => void applyFilters(filters)}>
         <Search size={17} />
         Filtrar
       </button>
+      <div className="filter-shortcuts">
+        <button type="button" className="secondary-button" disabled={loading} onClick={() => void applyFilters(expiringInThirtyDaysFilters(filters))}>
+          <CalendarClock size={17} />
+          30 dias
+        </button>
+        <button type="button" className="secondary-button" disabled={loading} onClick={() => void applyFilters({ ...filters, status: "VENCIDA", endDateFrom: "", endDateTo: "" })}>
+          <XCircle size={17} />
+          Vencidas
+        </button>
+        <button type="button" className="ghost-button" disabled={loading} onClick={() => void applyFilters({ ...emptyPolicyFilters })}>
+          Limpar
+        </button>
+      </div>
     </div>
   );
 }
@@ -1179,6 +1390,10 @@ function PolicyDetails({
         <div>
           <dt>Vencimento</dt>
           <dd>{formatDate(policy.endDate)}</dd>
+        </div>
+        <div>
+          <dt>Prazo</dt>
+          <dd>{expirationLabel(policy)}</dd>
         </div>
         <div>
           <dt>Premio mensal</dt>

@@ -30,10 +30,21 @@ function withQuery(path: string, params: Record<string, string | number | undefi
 }
 
 async function parseError(response: Response) {
+  if (response.status === 401) {
+    return "Credenciais invalidas ou sessao expirada.";
+  }
+  if (response.status === 403) {
+    return "Seu perfil nao tem permissao para executar esta acao.";
+  }
+
   const fallback = `Erro ${response.status}`;
   try {
     const body = await response.json();
-    return body.message || body.error || fallback;
+    const message = body.message || body.error || fallback;
+    if (Array.isArray(body.details) && body.details.length) {
+      return `${message}: ${body.details.join("; ")}`;
+    }
+    return message;
   } catch {
     return fallback;
   }
@@ -50,10 +61,15 @@ export async function request<T>(
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers
+    });
+  } catch {
+    throw new Error("Nao foi possivel conectar a API. Verifique se o back-end esta rodando.");
+  }
 
   if (!response.ok) {
     throw new Error(await parseError(response));

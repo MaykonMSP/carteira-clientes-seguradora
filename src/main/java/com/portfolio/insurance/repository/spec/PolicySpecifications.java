@@ -3,6 +3,7 @@ package com.portfolio.insurance.repository.spec;
 import com.portfolio.insurance.domain.Policy;
 import com.portfolio.insurance.domain.PolicyStatus;
 import com.portfolio.insurance.domain.PolicyType;
+import jakarta.persistence.criteria.JoinType;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDate;
@@ -46,12 +47,18 @@ public class PolicySpecifications {
         return (root, query, builder) -> to == null ? builder.conjunction() : builder.lessThanOrEqualTo(root.get("endDate"), to);
     }
 
-    public static Specification<Policy> policyNumberContains(String search) {
+    public static Specification<Policy> searchContains(String search) {
         return (root, query, builder) -> {
             if (search == null || search.isBlank()) {
                 return builder.conjunction();
             }
-            return builder.like(builder.lower(root.get("policyNumber")), "%" + search.toLowerCase() + "%");
+            String pattern = "%" + search.trim().toLowerCase() + "%";
+            return builder.or(
+                    builder.like(builder.lower(root.get("policyNumber")), pattern),
+                    builder.like(builder.lower(root.get("notes")), pattern),
+                    builder.like(builder.lower(root.join("customer", JoinType.LEFT).get("fullName")), pattern),
+                    builder.like(builder.lower(root.join("insurer", JoinType.LEFT).get("name")), pattern)
+            );
         };
     }
 }
