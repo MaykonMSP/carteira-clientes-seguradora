@@ -1,0 +1,14 @@
+target/
+**/target/
+
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+
+.env
+frontend/.env
+
+.idea/
+.vscode/
+*.log

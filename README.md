@@ -56,6 +56,22 @@ Por padrao, o Postgres do Docker fica exposto em `127.0.0.1:5433` para evitar co
 
 As migrations criam dados ficticios para demonstracao, incluindo seguradoras, clientes pessoa fisica e juridica, apolices vigentes, vencidas e proximas do vencimento, com seguros auto, residencial, empresarial, vida e saude.
 
+## Front-end
+O front-end fica em `/frontend` e usa React, Vite e TypeScript. Com o back-end rodando em `http://localhost:8080`, o Vite encaminha `/api` para a API Spring Boot.
+As telas consomem os dados reais da API, que por sua vez usa o PostgreSQL configurado em `DB_HOST`, `DB_PORT` e `DB_NAME`.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Para validar o build de producao:
+
+```bash
+npm run build
+```
+
 ## Variaveis de ambiente
 ```text
 DB_HOST=127.0.0.1
@@ -69,6 +85,7 @@ APP_ADMIN_PASSWORD=admin123
 APP_READONLY_USER=user
 APP_READONLY_PASSWORD=user123
 SPRING_PROFILES_ACTIVE=dev
+APP_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
 
 ## Swagger
